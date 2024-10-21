@@ -524,6 +524,10 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Digits;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wno-c++11-narrowing",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.extentofthejam.Digits;
 				PRODUCT_NAME = Digits;
 				WRAPPER_EXTENSION = vst;
@@ -547,6 +551,10 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Digits;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(OTHER_CFLAGS)",
+					"-Wno-c++11-narrowing",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.extentofthejam.Digits;
 				PRODUCT_NAME = Digits;
 				WRAPPER_EXTENSION = vst;
