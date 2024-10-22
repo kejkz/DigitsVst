@@ -10,7 +10,6 @@
 		8D576314048677EA00EA77CD /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0AA1909FFE8422F4C02AAC07 /* CoreFoundation.framework */; };
 		BF159EB91C60698F001095D0 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF159EB81C60698F001095D0 /* Cocoa.framework */; };
 		BF159EBB1C60699F001095D0 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF159EBA1C60699F001095D0 /* Accelerate.framework */; };
-		BF159EBD1C606A05001095D0 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BF159EBC1C606A05001095D0 /* Carbon.framework */; };
 		BF416AA915C868AC00B1C8D2 /* aeffguieditor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF416AA115C868AC00B1C8D2 /* aeffguieditor.cpp */; };
 		BF416AC315C868F700B1C8D2 /* vstgui_mac.mm in Sources */ = {isa = PBXBuildFile; fileRef = BF416AC215C868F700B1C8D2 /* vstgui_mac.mm */; };
 		BF5A4F4E1DC05C8F0065CF2A /* Chorus.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF82488C1DC04D980073E18C /* Chorus.cpp */; };
@@ -151,7 +150,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BF159EBD1C606A05001095D0 /* Carbon.framework in Frameworks */,
 				BF159EBB1C60699F001095D0 /* Accelerate.framework in Frameworks */,
 				BF159EB91C60698F001095D0 /* Cocoa.framework in Frameworks */,
 				BF934FB81C6066F3008125AC /* QuartzCore.framework in Frameworks */,
@@ -510,6 +508,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				COPY_PHASE_STRIP = NO;
@@ -523,7 +522,8 @@
 				INFOPLIST_FILE = "$(SRCROOT)/Digits-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Digits;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
+				ONLY_ACTIVE_ARCH = NO;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wno-c++11-narrowing",
@@ -538,6 +538,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD)";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				COPY_PHASE_STRIP = NO;
@@ -550,7 +551,7 @@
 				INFOPLIST_FILE = "$(SRCROOT)/Digits-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Digits;
 				INSTALL_PATH = "$(HOME)/Library/Bundles";
-				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MACOSX_DEPLOYMENT_TARGET = 11.5;
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-Wno-c++11-narrowing",

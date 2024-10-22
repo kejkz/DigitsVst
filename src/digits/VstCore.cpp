@@ -346,7 +346,7 @@ VstCore::VstCore(audioMasterCallback audioMaster) :
 	// Assume the sample rate is 44khz for compatibility
     // with Symbiosis AU wrapper (the VST doesn't seem to
     // get a request to change sample rate if it's 44khz)
-	setSampleRate(44100);
+	setSampleRate(48000);
 
     m_chorus[0].SetLFORate(.15);
     m_chorus[1].SetLFORate(.15);
