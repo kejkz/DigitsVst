@@ -63,6 +63,7 @@ struct Voice {
   int32_t noteId;
   int16_t channel, key;
   float phase;
+  float parameterOffsets[P_COUNT];
 };
 
 struct DigitsPlugin {
@@ -70,6 +71,9 @@ struct DigitsPlugin {
   const clap_host_t *host;
   float sampleRate;
   Array<Voice> voices;
+  float parameters[P_COUNT], mainParameters[P_COUNT];
+  bool changed[P_COUNT], mainChanged[P_COUNT];
+  Mutex syncParameters;
 };
 
 static void PluginProcessEvent(DigitsPlugin *plugin, const clap_event_header_t *event) {
@@ -92,7 +96,6 @@ static void PluginProcessEvent(DigitsPlugin *plugin, const clap_event_header_t *
         }
       }
 
-      // If this is a note on event, create a new voice and add it to our array.
       if (event->type == CLAP_EVENT_NOTE_ON) {
         Voice voice = {
           .held = true,
@@ -100,12 +103,77 @@ static void PluginProcessEvent(DigitsPlugin *plugin, const clap_event_header_t *
           .channel = noteEvent->channel,
           .key = noteEvent->key,
           .phase = 0.0f,
+          .parameterOffsets = {},
         };
 
         plugin->voices.Add(voice);
       }
+    } else if  (event->type == CLAP_EVENT_PARAM_VALUE) {
+      const clap_event_param_value_t *valueEvent = (const clap_event_param_value_t *) event;
+      uint32_t i = (uint32_t) valueEvent->param_id;
+      MutexAcquire(plugin->syncParameters);
+      plugin->parameters[i] = valueEvent->value;
+      plugin->changed[i] = true;
+      MutexRelease(plugin->syncParameters);
+    } else if (event->type == CLAP_EVENT_PARAM_MOD) {
+      const clap_event_param_mod_t *modEvent = (const clap_event_param_mod_t *) event;
+
+      for (int i = 0; i < plugin->voices.Length(); i++) {
+        Voice *voice = &plugin->voices[i];
+
+        if ((modEvent->key == -1 || voice->key == modEvent->key)
+                && (modEvent->note_id == -1 || voice->noteId == modEvent->note_id)
+                && (modEvent->channel == -1 || voice->channel == modEvent->channel)) {
+            voice->parameterOffsets[modEvent->param_id] = modEvent->amount;
+            break;
+        }
+      }
     }
   }
+}
+
+static void PluginSyncMainToAudio(DigitsPlugin *plugin, const clap_output_events_t *out) {
+  MutexAcquire(plugin->syncParameters);
+
+  for (uint32_t i = 0; i < P_COUNT; i++) {
+    if (plugin->mainChanged[i]) {
+      plugin->parameters[i] = plugin->mainParameters[i];
+      plugin->mainChanged[i] = false;
+
+      clap_event_param_value_t event = {};
+      event.header.size = sizeof(event);
+      event.header.time = 0;
+      event.header.space_id = CLAP_CORE_EVENT_SPACE_ID;
+      event.header.type = CLAP_EVENT_PARAM_VALUE;
+      event.header.flags = 0;
+      event.param_id = i;
+      event.cookie = NULL;
+      event.note_id = -1;
+      event.port_index = -1;
+      event.channel = -1;
+      event.key = -1;
+      event.value = plugin->parameters[i];
+      out->try_push(out, &event.header);
+    }
+  }
+
+  MutexRelease(plugin->syncParameters);
+}
+
+static bool PluginSyncAudioToMain(DigitsPlugin *plugin) {
+  bool anyChanged = false;
+  MutexAcquire(plugin->syncParameters);
+
+  for (uint32_t i = 0; i < P_COUNT; i++) {
+    if (plugin->changed[i]) {
+      plugin->mainParameters[i] = plugin->parameters[i];
+      plugin->changed[i] = false;
+      anyChanged = true;
+    }
+  }
+
+  MutexRelease(plugin->syncParameters);
+  return anyChanged;
 }
 
 static void PluginRenderAudio(DigitsPlugin *plugin, uint32_t start, uint32_t end, float *outputL, float *outputR) {
@@ -115,7 +183,10 @@ static void PluginRenderAudio(DigitsPlugin *plugin, uint32_t start, uint32_t end
     for (int i = 0; i < plugin->voices.Length(); i++) {
       Voice *voice = &plugin->voices[i];
       if (!voice->held) continue;
-      sum += sinf(voice->phase * 2.0f * 3.14159f) * 0.2f;
+
+      float volume = FloatClamp01(plugin->parameters[P_VOLUME] + voice->parameterOffsets[P_VOLUME]);
+      sum += sinf(voice->phase * 2.0f * 3.14159f) * 0.2f * volume;
+
       voice->phase += 440.0f * exp2f((voice->key - 57.0f) / 12.0f) / plugin->sampleRate;
       voice->phase -= floorf(voice->phase);
     }
@@ -175,12 +246,109 @@ static const clap_plugin_audio_ports_t extensionAudioPorts = {
   },
 };
 
+static const clap_plugin_params_t extensionParams = {
+    .count = [] (const clap_plugin_t *plugin) -> uint32_t {
+      return P_COUNT;
+    },
+
+    .get_info = [] (const clap_plugin_t *_plugin, uint32_t index, clap_param_info_t *information) -> bool {
+      if (index == P_VOLUME) {
+        memset(information, 0, sizeof(clap_param_info_t));
+        information->id = index;
+        // These flags enable polyphonic modulation.
+        information->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE | CLAP_PARAM_IS_MODULATABLE_PER_NOTE_ID;
+        information->min_value = 0.0f;
+        information->max_value = 1.0f;
+        information->default_value = 0.5f;
+        strcpy(information->name, "Volume");
+        return true;
+      } else {
+        return false;
+      }
+    },
+
+    .get_value = [] (const clap_plugin_t *_plugin, clap_id id, double *value) -> bool {
+      DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+      uint32_t i = (uint32_t) id;
+      if (i >= P_COUNT) return false;
+
+      // get_value is called on the main thread, but should return the value of the parameter according to the audio thread,
+      // since the value on the audio thread is the one that host communicates with us via CLAP_EVENT_PARAM_VALUE events.
+      // Since we're accessing the opposite thread's arrays, we must acquire the syncParameters mutex.
+      // And although we need to check the mainChanged array, we mustn't actually modify the parameters array,
+      // since that can only be done on the audio thread. Don't worry -- it'll pick up the changes eventually.
+      MutexAcquire(plugin->syncParameters);
+      *value = plugin->mainChanged[i] ? plugin->mainParameters[i] : plugin->parameters[i];
+      MutexRelease(plugin->syncParameters);
+      return true;
+    },
+
+    .value_to_text = [] (const clap_plugin_t *_plugin, clap_id id, double value, char *display, uint32_t size) {
+      uint32_t i = (uint32_t) id;
+      if (i >= P_COUNT) return false;
+      snprintf(display, size, "%f", value);
+      return true;
+    },
+
+    .text_to_value = [] (const clap_plugin_t *_plugin, clap_id param_id, const char *display, double *value) {
+      // TODO Implement this.
+      return false;
+    },
+
+    .flush = [] (const clap_plugin_t *_plugin, const clap_input_events_t *in, const clap_output_events_t *out) {
+      DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+      const uint32_t eventCount = in->size(in);
+
+      // For parameters that have been modified by the main thread, send CLAP_EVENT_PARAM_VALUE events to the host.
+      PluginSyncMainToAudio(plugin, out);
+
+      // Process events sent to our plugin from the host.
+      for (uint32_t eventIndex = 0; eventIndex < eventCount; eventIndex++) {
+        PluginProcessEvent(plugin, in->get(in, eventIndex));
+      }
+    },
+};
+
+static const clap_plugin_state_t extensionState = {
+  .save = [] (const clap_plugin_t *_plugin, const clap_ostream_t *stream) -> bool {
+    DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+
+    // Synchronize any changes from the audio thread (that is, parameter values sent to us by the host)
+    // before we save the state of the plugin.
+    PluginSyncAudioToMain(plugin);
+
+    return sizeof(float) * P_COUNT == stream->write(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+  },
+
+  .load = [] (const clap_plugin_t *_plugin, const clap_istream_t *stream) -> bool {
+    DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+
+    // Since we're modifying a parameter array, we need to acquire the syncParameters mutex.
+    MutexAcquire(plugin->syncParameters);
+    bool success = sizeof(float) * P_COUNT == stream->read(stream, plugin->mainParameters, sizeof(float) * P_COUNT);
+    // Make sure that the audio thread will pick up upon the modified parameters next time pluginClass.process is called.
+    for (uint32_t i = 0; i < P_COUNT; i++) plugin->mainChanged[i] = true;
+    MutexRelease(plugin->syncParameters);
+
+    return success;
+  },
+};
+
 static const clap_plugin_t pluginClass = {
   .desc = &pluginDescriptor,
   .plugin_data = nullptr,
 
   .init = [] (const clap_plugin *_plugin) -> bool {
     DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+
+    MutexInitialise(plugin->syncParameters);
+
+    for (uint32_t i = 0; i < P_COUNT; i++) {
+      clap_param_info_t information = {};
+      extensionParams.get_info(_plugin, i, &information);
+      plugin->mainParameters[i] = plugin->parameters[i] = information.default_value;
+    }
+
     (void) plugin;
     return true;
   },
@@ -188,6 +356,7 @@ static const clap_plugin_t pluginClass = {
   .destroy = [] (const clap_plugin *_plugin) {
     DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
     plugin->voices.Free();
+    MutexDestroy(plugin->syncParameters);
     free(plugin);
   },
 
@@ -214,6 +383,8 @@ static const clap_plugin_t pluginClass = {
 
   .process = [] (const clap_plugin *_plugin, const clap_process_t *process) -> clap_process_status {
     DigitsPlugin *plugin = (DigitsPlugin *) _plugin->plugin_data;
+
+    PluginSyncMainToAudio(plugin, process->out_events);
 
     assert(process->audio_outputs_count == 1);
     assert(process->audio_inputs_count == 0);
@@ -271,6 +442,8 @@ static const clap_plugin_t pluginClass = {
   .get_extension = [] (const clap_plugin *plugin, const char *id) -> const void * {
     if (0 == strcmp(id, CLAP_EXT_NOTE_PORTS )) return &extensionNotePorts;
     if (0 == strcmp(id, CLAP_EXT_AUDIO_PORTS)) return &extensionAudioPorts;
+    if (0 == strcmp(id, CLAP_EXT_PARAMS     )) return &extensionParams;
+    if (0 == strcmp(id, CLAP_EXT_STATE      )) return &extensionState;
     return nullptr;
   },
 
