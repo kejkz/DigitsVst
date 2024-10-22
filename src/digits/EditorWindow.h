@@ -13,7 +13,9 @@
 #include "../vstgui/plugin-bindings/aeffguieditor.h"
 #include "VstCore.h" // kNumParameters
 
-class EditorWindow : public AEffGUIEditor, public IControlListener
+using namespace VSTGUI;
+
+class EditorWindow : public VSTGUI::AEffGUIEditor, public VSTGUI::IControlListener
 {
 public:
 	EditorWindow(void *p);
@@ -26,7 +28,7 @@ public:
 	void idle();
 	
 	// CControlListener
-	void valueChanged (CControl* pControl);
+    void valueChanged (VSTGUI::CControl* pControl);
 	
 	// The guts of the effect
 	VstCore *m_me;
@@ -95,24 +97,24 @@ protected:
     
     int m_curLFO;
     
-	CControl* m_controls[VstCore::kNumParams];
-    CControl* m_LFOButtons[3];
-    CControl* m_velButton;
-    CControl* m_atButton;
-    CControl* m_modButton;
-    CControl* m_velLabels[2];
-    CControl* m_atLabels[2];
-    CControl* m_modLabels[2];
+    VSTGUI::CControl* m_controls[VstCore::kNumParams];
+    VSTGUI::CControl* m_LFOButtons[3];
+    VSTGUI::CControl* m_velButton;
+    VSTGUI::CControl* m_atButton;
+    VSTGUI::CControl* m_modButton;
+    VSTGUI::CControl* m_velLabels[2];
+    VSTGUI::CControl* m_atLabels[2];
+    VSTGUI::CControl* m_modLabels[2];
     
-	CTextLabel* m_statusText;
-    COptionMenu* m_patchMenu;
-    COptionMenu* m_bankMenu;
-    CTextEdit *m_saveFilenameField;
-    CFrame *m_frame;
-    CViewContainer *m_savePopup;
+    VSTGUI::CTextLabel* m_statusText;
+    VSTGUI::COptionMenu* m_patchMenu;
+    VSTGUI::COptionMenu* m_bankMenu;
+    VSTGUI::CTextEdit *m_saveFilenameField;
+    VSTGUI::CFrame *m_frame;
+    VSTGUI::CViewContainer *m_savePopup;
     
-    CViewContainer *m_delayView;
-    CViewContainer *m_chorusView;
+    VSTGUI::CViewContainer *m_delayView;
+    VSTGUI::CViewContainer *m_chorusView;
     CViewContainer *m_bitcrushView;
     CControl *m_delayButton;
     CControl *m_chorusButton;

@@ -346,7 +346,7 @@ VstCore::VstCore(audioMasterCallback audioMaster) :
 	// Assume the sample rate is 44khz for compatibility
     // with Symbiosis AU wrapper (the VST doesn't seem to
     // get a request to change sample rate if it's 44khz)
-	setSampleRate(44100);
+	setSampleRate(48000);
 
     m_chorus[0].SetLFORate(.15);
     m_chorus[1].SetLFORate(.15);
@@ -357,7 +357,7 @@ VstCore::VstCore(audioMasterCallback audioMaster) :
 #if !defined(FAUX_VST_HEADER) && !defined(NO_EDITOR)
 	if (!getenv("DIGITSVST_NO_EDITOR"))
 	{
-		extern AEffGUIEditor* createEditor (AudioEffectX*);
+        extern VSTGUI::AEffGUIEditor* createEditor (AudioEffectX*);
     	setEditor (createEditor (this));
 	}
 #endif
@@ -367,7 +367,7 @@ VstCore::VstCore(audioMasterCallback audioMaster) :
 
 void VstCore::setProgram(VstInt32 program)
 {
-    return;
+//    return;
     
     PatchBankList::fileList_t patchNames = m_pbList.GetPatchList();
     m_curProgram = program;
@@ -1187,7 +1187,7 @@ void VstCore::setParameter(VstInt32 index, float value)
     {
 #if !defined(FAUX_VST_HEADER) && !defined(NO_EDITOR)
         if (editor && index != kDelLoss)
-            ((AEffGUIEditor*)editor)->setParameter(index, value);
+            ((VSTGUI::AEffGUIEditor*)editor)->setParameter(index, value);
 #endif
         return;
     }
@@ -1355,7 +1355,7 @@ void VstCore::setParameter(VstInt32 index, float value)
 
 #if !defined(FAUX_VST_HEADER) && !defined(NO_EDITOR)
 	if (editor && index != kDelLoss)
-		((AEffGUIEditor*)editor)->setParameter(index, value);
+		((VSTGUI::AEffGUIEditor*)editor)->setParameter(index, value);
 #endif
 	
 	return;

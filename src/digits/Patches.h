@@ -7,7 +7,8 @@ extern char presetBank[32][512];
 
 //extern int s_patchLen[NUMPATCHES];
 
-char *s_patchNames[] = { "INIT:Init Tone",
+char const *s_patchNames[] = {
+    "INIT:Init Tone",
 	"PAD: Bell Brass Pad",
 	"PAD: Dream Pad",
 	"PAD: Flanger Strings",
